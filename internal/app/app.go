@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"ethereum-whale-alert/internal/client"
+	"ethereum-whale-alert/internal/watcher"
 )
 
 type App struct {
@@ -35,6 +36,14 @@ func (a *App) Run(ctx context.Context) error {
 		return err
 	}
 	defer ethereumClient.Close()
+
+	w := watcher.New(ethereumClient, a.cfg.MinThresholdETH)
+
+	go func() {
+		if err := w.Run(ctx); err != nil {
+			slog.Error("watcher error", "error", err)
+		}
+	}()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
