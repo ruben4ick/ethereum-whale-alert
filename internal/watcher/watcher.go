@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"time"
+
+	"ethereum-whale-alert/internal/notifier"
 
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -17,9 +20,10 @@ type Client interface {
 type Watcher struct {
 	client       Client
 	thresholdWei *big.Int
+	notifiers    []notifier.Notifier
 }
 
-func New(client Client, thresholdETH float64) *Watcher {
+func New(client Client, thresholdETH float64, notifiers ...notifier.Notifier) *Watcher {
 	thresholdWei := new(big.Float).Mul(
 		big.NewFloat(thresholdETH),
 		big.NewFloat(1e18),
@@ -29,6 +33,7 @@ func New(client Client, thresholdETH float64) *Watcher {
 	return &Watcher{
 		client:       client,
 		thresholdWei: wei,
+		notifiers:    notifiers,
 	}
 }
 
@@ -56,25 +61,49 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 		return fmt.Errorf("get a block by number: %w", err)
 	}
 
+	blockTime := time.Unix(int64(block.Time()), 0)
+
 	for _, tx := range block.Transactions() {
 		if tx.Value().Cmp(w.thresholdWei) >= 0 {
-			w.logWhaleTransaction(tx, block.Number())
+			event := w.buildEvent(tx, block.Number(), blockTime)
+			w.notify(ctx, event)
 		}
 	}
 
 	return nil
 }
 
-func (w *Watcher) logWhaleTransaction(tx *types.Transaction, blockNumber *big.Int) {
+func (w *Watcher) buildEvent(tx *types.Transaction, blockNumber *big.Int, blockTime time.Time) notifier.AlertEvent {
 	ethValue := new(big.Float).Quo(
 		new(big.Float).SetInt(tx.Value()),
 		big.NewFloat(1e18),
 	)
 
+	to := "contract creation"
+	if tx.To() != nil {
+		to = tx.To().Hex()
+	}
+
+	return notifier.AlertEvent{
+		TxHash:      tx.Hash().Hex(),
+		BlockNumber: blockNumber,
+		ValueETH:    ethValue.Text('f', 4),
+		To:          to,
+		Timestamp:   blockTime,
+	}
+}
+
+func (w *Watcher) notify(ctx context.Context, event notifier.AlertEvent) {
 	slog.Info("whale transaction detected",
-		"tx_hash", tx.Hash().Hex(),
-		"block", blockNumber,
-		"value_eth", ethValue.Text('f', 4),
-		"to", tx.To(),
+		"tx_hash", event.TxHash,
+		"block", event.BlockNumber,
+		"value_eth", event.ValueETH,
+		"to", event.To,
 	)
+
+	for _, n := range w.notifiers {
+		if err := n.Notify(ctx, event); err != nil {
+			slog.Error("failed to send notification", "error", err)
+		}
+	}
 }

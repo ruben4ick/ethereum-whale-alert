@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"ethereum-whale-alert/internal/client"
+	"ethereum-whale-alert/internal/notifier"
 	"ethereum-whale-alert/internal/watcher"
 )
 
@@ -37,7 +38,14 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	defer ethereumClient.Close()
 
-	w := watcher.New(ethereumClient, a.cfg.MinThresholdETH)
+	var notifiers []notifier.Notifier
+
+	if a.cfg.DiscordWebhookURL != "" {
+		notifiers = append(notifiers, notifier.NewDiscord(a.cfg.DiscordWebhookURL))
+		slog.Info("discord notifier enabled")
+	}
+
+	w := watcher.New(ethereumClient, a.cfg.MinThresholdETH, notifiers...)
 
 	go func() {
 		if err := w.Run(ctx); err != nil {
