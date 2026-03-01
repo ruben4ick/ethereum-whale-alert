@@ -45,6 +45,11 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Info("discord notifier enabled")
 	}
 
+	if a.cfg.SlackWebhookURL != "" {
+		notifiers = append(notifiers, notifier.NewSlack(a.cfg.SlackWebhookURL))
+		slog.Info("slack notifier enabled")
+	}
+
 	w := watcher.New(ethereumClient, a.cfg.MinThresholdETH, notifiers...)
 
 	go func() {
