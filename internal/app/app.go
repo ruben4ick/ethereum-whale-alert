@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,6 +11,8 @@ import (
 	"ethereum-whale-alert/internal/client"
 	"ethereum-whale-alert/internal/notifier"
 	"ethereum-whale-alert/internal/watcher"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type App struct {
@@ -38,15 +41,24 @@ func (a *App) Run(ctx context.Context) error {
 	}
 	defer ethereumClient.Close()
 
+	go func() {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		slog.Info("metrics server listening")
+		if err := http.ListenAndServe(a.cfg.MetricsPort, mux); err != nil {
+			slog.Error("metrics server error", "error", err)
+		}
+	}()
+
 	var notifiers []notifier.Notifier
 
 	if a.cfg.DiscordWebhookURL != "" {
-		notifiers = append(notifiers, notifier.NewDiscord(a.cfg.DiscordWebhookURL))
+		notifiers = append(notifiers, notifier.WithMetrics("discord", notifier.NewDiscord(a.cfg.DiscordWebhookURL)))
 		slog.Info("discord notifier enabled")
 	}
 
 	if a.cfg.SlackWebhookURL != "" {
-		notifiers = append(notifiers, notifier.NewSlack(a.cfg.SlackWebhookURL))
+		notifiers = append(notifiers, notifier.WithMetrics("slack", notifier.NewSlack(a.cfg.SlackWebhookURL)))
 		slog.Info("slack notifier enabled")
 	}
 

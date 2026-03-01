@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"ethereum-whale-alert/internal/metrics"
 	"ethereum-whale-alert/internal/notifier"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -56,6 +57,8 @@ func (w *Watcher) Run(ctx context.Context) error {
 }
 
 func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
+	start := time.Now()
+
 	block, err := w.client.GetBlockByNumber(ctx, number)
 	if err != nil {
 		return fmt.Errorf("get a block by number: %w", err)
@@ -63,11 +66,29 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 
 	blockTime := time.Unix(int64(block.Time()), 0)
 
+	whaleCount := 0
 	for _, tx := range block.Transactions() {
 		if tx.Value().Cmp(w.thresholdWei) >= 0 {
+			valueETH, _ := new(big.Float).Quo(
+				new(big.Float).SetInt(tx.Value()),
+				big.NewFloat(1e18),
+			).Float64()
+
+			metrics.WhaleTxTotal.WithLabelValues("native_eth").Inc()
+			metrics.WhaleTxValueETH.Observe(valueETH)
+			whaleCount++
+
 			event := w.buildEvent(tx, block.Number(), blockTime)
 			w.notify(ctx, event)
 		}
+	}
+
+	metrics.BlocksProcessedTotal.Inc()
+	metrics.BlockProcessingDuration.Observe(time.Since(start).Seconds())
+	metrics.WhaleTxPerBlock.Set(float64(whaleCount))
+
+	if whaleCount > 0 {
+		metrics.BlocksWithWhalesTotal.Inc()
 	}
 
 	return nil
