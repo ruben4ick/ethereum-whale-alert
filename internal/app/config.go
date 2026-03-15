@@ -7,7 +7,7 @@ type Config struct {
 	MinThresholdETH   float64 `envconfig:"MIN_THRESHOLD_ETH" default:"0.1"`
 	DiscordWebhookURL string  `envconfig:"DISCORD_WEBHOOK_URL"`
 	SlackWebhookURL   string  `envconfig:"SLACK_WEBHOOK_URL"`
-	MetricsPort       string  `envconfig:"METRICS_PORT" default:"2112"`
+	MetricsPort       string  `envconfig:"METRICS_PORT" default:":2112"`
 	WatchERC20        bool    `envconfig:"WATCH_ERC20" default:"false"`
 	PriceCacheTTL     int     `envconfig:"PRICE_CACHE_TTL_SEC" default:"300"`
 }
