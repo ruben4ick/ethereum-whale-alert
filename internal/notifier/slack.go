@@ -38,20 +38,35 @@ type slackText struct {
 }
 
 func (s *Slack) Notify(ctx context.Context, event AlertEvent) error {
+	title := "🐋 Whale Transaction Detected"
+	valueLabel := event.ValueETH + " ETH"
+	if event.Type == TypeERC20 {
+		title = "🐋 Whale ERC-20 Transfer Detected"
+		valueLabel = event.TokenAmount + " tokens (≈ " + event.ValueETH + " ETH)"
+	}
+
+	fields := []slackText{
+		{Type: "mrkdwn", Text: "*Tx Hash*\n" + event.TxHash},
+		{Type: "mrkdwn", Text: "*Value*\n" + valueLabel},
+		{Type: "mrkdwn", Text: "*Block*\n" + event.BlockNumber.String()},
+		{Type: "mrkdwn", Text: "*To*\n" + event.To},
+	}
+	if event.From != "" {
+		fields = append(fields, slackText{Type: "mrkdwn", Text: "*From*\n" + event.From})
+	}
+	if event.Token != "" {
+		fields = append(fields, slackText{Type: "mrkdwn", Text: "*Token*\n" + event.Token})
+	}
+
 	payload := slackPayload{
 		Blocks: []slackBlock{
 			{
 				Type: "header",
-				Text: &slackText{Type: "plain_text", Text: "🐋 Whale Transaction Detected"},
+				Text: &slackText{Type: "plain_text", Text: title},
 			},
 			{
-				Type: "section",
-				Fields: []slackText{
-					{Type: "mrkdwn", Text: "*Tx Hash*\n" + event.TxHash},
-					{Type: "mrkdwn", Text: "*Value*\n" + event.ValueETH + " ETH"},
-					{Type: "mrkdwn", Text: "*Block*\n" + event.BlockNumber.String()},
-					{Type: "mrkdwn", Text: "*To*\n" + event.To},
-				},
+				Type:   "section",
+				Fields: fields,
 			},
 			{
 				Type: "context",

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ethereum-whale-alert/internal/client"
 	"ethereum-whale-alert/internal/notifier"
@@ -62,7 +63,12 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Info("slack notifier enabled")
 	}
 
-	w := watcher.New(ethereumClient, a.cfg.MinThresholdETH, notifiers...)
+	pf := client.NewCoinGecko(time.Duration(a.cfg.PriceCacheTTL) * time.Second)
+
+	w := watcher.New(ethereumClient, watcher.Config{
+		ThresholdETH: a.cfg.MinThresholdETH,
+		WatchERC20:   a.cfg.WatchERC20,
+	}, pf, notifiers...)
 
 	go func() {
 		if err := w.Run(ctx); err != nil {

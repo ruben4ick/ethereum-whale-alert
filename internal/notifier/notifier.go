@@ -16,9 +16,20 @@ type AlertEvent struct {
 	TxHash      string
 	BlockNumber *big.Int
 	ValueETH    string
+	From        string
 	To          string
+	Type        Type
+	Token       string
+	TokenAmount string // raw token amount (e.g. "1000000.0000")
 	Timestamp   time.Time
 }
+
+type Type string
+
+const (
+	TypeNativeETH Type = "native_eth"
+	TypeERC20     Type = "erc20"
+)
 
 type metricsNotifier struct {
 	channel string

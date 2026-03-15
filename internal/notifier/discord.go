@@ -39,17 +39,32 @@ type discordField struct {
 }
 
 func (d *Discord) Notify(ctx context.Context, event AlertEvent) error {
+	title := "🐋 Whale Transaction Detected"
+	valueLabel := event.ValueETH + " ETH"
+	if event.Type == TypeERC20 {
+		title = "🐋 Whale ERC-20 Transfer Detected"
+		valueLabel = event.TokenAmount + " tokens (≈ " + event.ValueETH + " ETH)"
+	}
+
+	fields := []discordField{
+		{Name: "Tx Hash", Value: event.TxHash, Inline: false},
+		{Name: "Block", Value: event.BlockNumber.String(), Inline: true},
+		{Name: "Value", Value: valueLabel, Inline: true},
+		{Name: "To", Value: event.To, Inline: false},
+	}
+	if event.From != "" {
+		fields = append(fields, discordField{Name: "From", Value: event.From, Inline: false})
+	}
+	if event.Token != "" {
+		fields = append(fields, discordField{Name: "Token Contract", Value: event.Token, Inline: false})
+	}
+
 	payload := discordPayload{
 		Embeds: []discordEmbed{
 			{
-				Title: "🐋 Whale Transaction Detected",
-				Color: 3447003, // blue
-				Fields: []discordField{
-					{Name: "Tx Hash", Value: event.TxHash, Inline: false},
-					{Name: "Block", Value: event.BlockNumber.String(), Inline: true},
-					{Name: "Value", Value: event.ValueETH + " ETH", Inline: true},
-					{Name: "To", Value: event.To, Inline: false},
-				},
+				Title:     title,
+				Color:     3447003,
+				Fields:    fields,
 				Timestamp: event.Timestamp.UTC().Format(time.RFC3339),
 			},
 		},
