@@ -20,6 +20,10 @@ type CoinGecko struct {
 
 	mu    sync.RWMutex
 	cache map[string]cacheEntry
+
+	// Tokens that need price refresh.
+	pendingMu sync.Mutex
+	pending   map[string]struct{}
 }
 
 type cacheEntry struct {
@@ -33,82 +37,152 @@ func NewCoinGecko(cacheTTL time.Duration) *CoinGecko {
 		cacheTTL: cacheTTL,
 		limiter:  rate.NewLimiter(rate.Every(6*time.Second), 1),
 		cache:    make(map[string]cacheEntry),
+		pending:  make(map[string]struct{}),
 	}
 }
 
-func (cg *CoinGecko) PriceInETH(ctx context.Context, tokenAddress string) (float64, bool) {
+func (cg *CoinGecko) Run(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cg.refreshPending(ctx)
+			cg.refreshStale(ctx)
+		}
+	}
+}
+
+// PriceInETH returns cached price instantly. Never blocks on network.
+// If price is unknown, schedules a background fetch and returns false.
+func (cg *CoinGecko) PriceInETH(_ context.Context, tokenAddress string) (float64, bool) {
 	addr := strings.ToLower(tokenAddress)
 
 	cg.mu.RLock()
 	entry, ok := cg.cache[addr]
 	cg.mu.RUnlock()
 
-	if ok && time.Since(entry.fetchedAt) < cg.cacheTTL {
+	if ok {
 		return entry.price, true
 	}
 
-	p, err := cg.fetch(ctx, addr)
-	if err != nil {
-		slog.Warn("coingecko price fetch failed", "token", addr, "error", err)
-		// Return stale cache if available.
-		if ok {
-			return entry.price, true
-		}
-		return 0, false
-	}
-
-	cg.mu.Lock()
-	cg.cache[addr] = cacheEntry{price: p, fetchedAt: time.Now()}
-	cg.mu.Unlock()
-
-	return p, true
+	// No cached price — schedule background fetch.
+	cg.scheduleFetch(addr)
+	return 0, false
 }
 
-func (cg *CoinGecko) fetch(ctx context.Context, addr string) (float64, error) {
-	if err := cg.limiter.Wait(ctx); err != nil {
-		return 0, fmt.Errorf("rate limiter: %w", err)
+func (cg *CoinGecko) scheduleFetch(addr string) {
+	cg.pendingMu.Lock()
+	cg.pending[addr] = struct{}{}
+	cg.pendingMu.Unlock()
+}
+
+// refreshPending fetches prices for newly seen tokens.
+func (cg *CoinGecko) refreshPending(ctx context.Context) {
+	cg.pendingMu.Lock()
+	if len(cg.pending) == 0 {
+		cg.pendingMu.Unlock()
+		return
 	}
+	tokens := make([]string, 0, len(cg.pending))
+	for addr := range cg.pending {
+		tokens = append(tokens, addr)
+	}
+	cg.pending = make(map[string]struct{})
+	cg.pendingMu.Unlock()
+
+	cg.fetchBatch(ctx, tokens)
+}
+
+// refreshStale re-fetches prices that exceeded the TTL.
+func (cg *CoinGecko) refreshStale(ctx context.Context) {
+	cg.mu.RLock()
+	var stale []string
+	for addr, entry := range cg.cache {
+		if time.Since(entry.fetchedAt) > cg.cacheTTL {
+			stale = append(stale, addr)
+		}
+	}
+	cg.mu.RUnlock()
+
+	if len(stale) > 0 {
+		cg.fetchBatch(ctx, stale)
+	}
+}
+
+func (cg *CoinGecko) fetchBatch(ctx context.Context, tokens []string) {
+	const batchSize = 50
+	for i := 0; i < len(tokens); i += batchSize {
+		end := i + batchSize
+		if end > len(tokens) {
+			end = len(tokens)
+		}
+		batch := tokens[i:end]
+
+		if err := cg.limiter.Wait(ctx); err != nil {
+			return
+		}
+
+		prices, err := cg.fetchMultiple(ctx, batch)
+		if err != nil {
+			slog.Warn("coingecko batch fetch failed", "tokens", len(batch), "error", err)
+			continue
+		}
+
+		cg.mu.Lock()
+		now := time.Now()
+		for addr, price := range prices {
+			cg.cache[addr] = cacheEntry{price: price, fetchedAt: now}
+		}
+		cg.mu.Unlock()
+
+		slog.Debug("prices updated", "count", len(prices))
+	}
+}
+
+func (cg *CoinGecko) fetchMultiple(ctx context.Context, addrs []string) (map[string]float64, error) {
+	joined := strings.Join(addrs, ",")
 
 	url := fmt.Sprintf(
 		"https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=%s&vs_currencies=eth",
-		addr,
+		joined,
 	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := cg.client.Do(req)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		cg.limiter.SetLimit(rate.Every(12 * time.Second))
-		return 0, fmt.Errorf("coingecko returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("coingecko rate limited (429)")
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("coingecko returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("coingecko returned status %d", resp.StatusCode)
 	}
 
 	var result map[string]map[string]float64
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return 0, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	tokenData, ok := result[addr]
-	if !ok {
-		return 0, fmt.Errorf("token %s not found in response", addr)
+	prices := make(map[string]float64, len(result))
+	for addr, data := range result {
+		if ethPrice, ok := data["eth"]; ok {
+			prices[addr] = ethPrice
+		}
 	}
 
-	ethPrice, ok := tokenData["eth"]
-	if !ok {
-		return 0, fmt.Errorf("eth price not found for token %s", addr)
-	}
-
-	return ethPrice, nil
+	return prices, nil
 }

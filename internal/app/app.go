@@ -64,6 +64,7 @@ func (a *App) Run(ctx context.Context) error {
 	}
 
 	pf := client.NewCoinGecko(time.Duration(a.cfg.PriceCacheTTL) * time.Second)
+	go pf.Run(ctx)
 
 	w := watcher.New(ethereumClient, watcher.Config{
 		ThresholdETH: a.cfg.MinThresholdETH,
