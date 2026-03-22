@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
     ports:
       - "2112:2112"
+    labels:
+      - "app=ethereum-whale-alert"
 
   prometheus:
     image: prom/prometheus:latest
@@ -15,6 +17,23 @@ services:
       - "9090:9090"
     depends_on:
       - app
+
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest
+    restart: unless-stopped
+    volumes:
+      - ./promtail.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
 
   grafana:
     image: grafana/grafana:latest
@@ -28,3 +47,4 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+      - loki
