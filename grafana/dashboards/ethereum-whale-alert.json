@@ -198,8 +198,32 @@
       "type": "stat"
     },
     {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 17 },
+      "id": 20,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=\"ethereum-whale-alert\"} |= \"whale transaction detected\" | json | line_format \"{{.type}} | {{.value}} ETH | tx: {{.tx_hash}} | from: {{.from}} | to: {{.to}}\"",
+          "refId": "A"
+        }
+      ],
+      "title": "Whale Transaction Log",
+      "type": "logs"
+    },
+    {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
       "id": 101,
       "title": "Block Processing",
       "type": "row"
