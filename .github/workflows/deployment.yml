@@ -18,7 +18,7 @@ jobs:
           go-version: '1.25'
 
       - name: Build binary
-        run: GOOS=linux GOARCH=amd64 go build -o ethereum-whale-alert ./cmd/ethereum-whale-alert
+        run: GOOS=linux GOARCH=arm64 go build -o ethereum-whale-alert ./cmd/ethereum-whale-alert
 
       - name: Deploy to EC2
         uses: appleboy/scp-action@v0.1.7

@@ -1,4 +1,5 @@
 /.env
+*.pem
 /.idea/
 /vendor/
 **.DS_Store
