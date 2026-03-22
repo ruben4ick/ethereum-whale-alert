@@ -42,7 +42,7 @@ func NewCoinGecko(cacheTTL time.Duration) *CoinGecko {
 }
 
 func (cg *CoinGecko) Run(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -50,8 +50,7 @@ func (cg *CoinGecko) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			cg.refreshPending(ctx)
-			cg.refreshStale(ctx)
+			cg.refresh(ctx)
 		}
 	}
 }
@@ -80,13 +79,10 @@ func (cg *CoinGecko) scheduleFetch(addr string) {
 	cg.pendingMu.Unlock()
 }
 
-// refreshPending fetches prices for newly seen tokens.
-func (cg *CoinGecko) refreshPending(ctx context.Context) {
+// refresh collects pending + stale tokens into a single batch request.
+func (cg *CoinGecko) refresh(ctx context.Context) {
+	// Collect pending tokens.
 	cg.pendingMu.Lock()
-	if len(cg.pending) == 0 {
-		cg.pendingMu.Unlock()
-		return
-	}
 	tokens := make([]string, 0, len(cg.pending))
 	for addr := range cg.pending {
 		tokens = append(tokens, addr)
@@ -94,22 +90,24 @@ func (cg *CoinGecko) refreshPending(ctx context.Context) {
 	cg.pending = make(map[string]struct{})
 	cg.pendingMu.Unlock()
 
-	cg.fetchBatch(ctx, tokens)
-}
+	// Collect stale tokens.
+	seen := make(map[string]struct{}, len(tokens))
+	for _, t := range tokens {
+		seen[t] = struct{}{}
+	}
 
-// refreshStale re-fetches prices that exceeded the TTL.
-func (cg *CoinGecko) refreshStale(ctx context.Context) {
 	cg.mu.RLock()
-	var stale []string
 	for addr, entry := range cg.cache {
 		if time.Since(entry.fetchedAt) > cg.cacheTTL {
-			stale = append(stale, addr)
+			if _, dup := seen[addr]; !dup {
+				tokens = append(tokens, addr)
+			}
 		}
 	}
 	cg.mu.RUnlock()
 
-	if len(stale) > 0 {
-		cg.fetchBatch(ctx, stale)
+	if len(tokens) > 0 {
+		cg.fetchBatch(ctx, tokens)
 	}
 }
 

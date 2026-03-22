@@ -9,7 +9,7 @@ type Config struct {
 	SlackWebhookURL   string  `envconfig:"SLACK_WEBHOOK_URL"`
 	MetricsPort       string  `envconfig:"METRICS_PORT" default:":2112"`
 	WatchERC20        bool    `envconfig:"WATCH_ERC20" default:"false"`
-	PriceCacheTTL     int     `envconfig:"PRICE_CACHE_TTL_SEC" default:"300"`
+	PriceCacheTTL     int     `envconfig:"PRICE_CACHE_TTL_SEC" default:"1800"`
 }
 
 func (cfg *Config) Process() error {
