@@ -25,13 +25,6 @@ scrape_configs:
           expressions:
             level: level
             msg: msg
-            tx_hash: tx_hash
-            block: block
-            value: value
-            from: from
-            to: to
-            token: token
-            type: type
       - labels:
           level:
           msg:

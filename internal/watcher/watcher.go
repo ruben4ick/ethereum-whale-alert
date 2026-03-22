@@ -107,13 +107,26 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 		}
 	}
 
+	txCount := len(block.Transactions())
+
 	metrics.BlocksProcessedTotal.Inc()
 	metrics.BlockProcessingDuration.Observe(time.Since(start).Seconds())
 	metrics.WhaleTxPerBlock.Set(float64(whaleCount))
+	metrics.BlockGasUsed.Set(float64(block.GasUsed()))
+	metrics.BlockTransactionsTotal.Add(float64(txCount))
+	metrics.BlockTransactionsPerBlock.Set(float64(txCount))
 
 	if whaleCount > 0 {
 		metrics.BlocksWithWhalesTotal.Inc()
 	}
+
+	slog.Info("block processed",
+		"block", number,
+		"transactions", txCount,
+		"whale_count", whaleCount,
+		"gas_used", block.GasUsed(),
+		"duration_ms", time.Since(start).Milliseconds(),
+	)
 
 	return nil
 }
@@ -144,6 +157,7 @@ func (w *Watcher) checkERC20Transfer(ctx context.Context, tx *types.Transaction,
 		tokenPriceETH, ok := w.priceFetcher.PriceInETH(ctx, tokenAddr)
 		if !ok {
 			slog.Debug("skipping erc20 transfer: price unavailable", "token", tokenAddr)
+			metrics.ERC20SkippedTotal.Inc()
 			continue
 		}
 

@@ -40,6 +40,27 @@ var (
 		Help: "Total number of blocks that contained at least one whale transaction.",
 	})
 
+	// Blockchain metrics
+	BlockGasUsed = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ethereum_block_gas_used",
+		Help: "Gas used in the last processed block.",
+	})
+
+	BlockTransactionsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "ethereum_block_transactions_total",
+		Help: "Total number of transactions across all processed blocks.",
+	})
+
+	BlockTransactionsPerBlock = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "ethereum_block_transactions_per_block",
+		Help: "Number of transactions in the last processed block.",
+	})
+
+	ERC20SkippedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "erc20_tokens_skipped_total",
+		Help: "Total ERC-20 transfers skipped due to unavailable price.",
+	})
+
 	// Notification metrics
 	NotificationsSentTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "notifications_sent_total",
