@@ -10,6 +10,7 @@ type Config struct {
 	MetricsPort       string  `envconfig:"METRICS_PORT" default:":2112"`
 	WatchERC20        bool    `envconfig:"WATCH_ERC20" default:"false"`
 	PriceCacheTTL     int     `envconfig:"PRICE_CACHE_TTL_SEC" default:"1800"`
+	CoinGeckoAPIKey   string  `envconfig:"COINGECKO_API_KEY"`
 }
 
 func (cfg *Config) Process() error {

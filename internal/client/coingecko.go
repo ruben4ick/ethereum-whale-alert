@@ -17,6 +17,7 @@ type CoinGecko struct {
 	client   *http.Client
 	cacheTTL time.Duration
 	limiter  *rate.Limiter
+	apiKey   string
 
 	mu    sync.RWMutex
 	cache map[string]cacheEntry
@@ -31,11 +32,12 @@ type cacheEntry struct {
 	fetchedAt time.Time
 }
 
-func NewCoinGecko(cacheTTL time.Duration) *CoinGecko {
+func NewCoinGecko(cacheTTL time.Duration, apiKey string) *CoinGecko {
 	return &CoinGecko{
 		client:   &http.Client{Timeout: 10 * time.Second},
 		cacheTTL: cacheTTL,
 		limiter:  rate.NewLimiter(rate.Every(6*time.Second), 1),
+		apiKey:   apiKey,
 		cache:    make(map[string]cacheEntry),
 		pending:  make(map[string]struct{}),
 	}
@@ -154,6 +156,9 @@ func (cg *CoinGecko) fetchMultiple(ctx context.Context, addrs []string) (map[str
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
+	if cg.apiKey != "" {
+		req.Header.Set("x-cg-demo-api-key", cg.apiKey)
+	}
 
 	resp, err := cg.client.Do(req)
 	if err != nil {

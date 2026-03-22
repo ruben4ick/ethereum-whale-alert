@@ -63,7 +63,7 @@ func (a *App) Run(ctx context.Context) error {
 		slog.Info("slack notifier enabled")
 	}
 
-	pf := client.NewCoinGecko(time.Duration(a.cfg.PriceCacheTTL) * time.Second)
+	pf := client.NewCoinGecko(time.Duration(a.cfg.PriceCacheTTL)*time.Second, a.cfg.CoinGeckoAPIKey)
 	go pf.Run(ctx)
 
 	w := watcher.New(ethereumClient, watcher.Config{
