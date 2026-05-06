@@ -31,6 +31,7 @@ type Type string
 const (
 	TypeNativeETH Type = "native_eth"
 	TypeERC20     Type = "erc20"
+	TypeSwap      Type = "swap"
 )
 
 type Status string

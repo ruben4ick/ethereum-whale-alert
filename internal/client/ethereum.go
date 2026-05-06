@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -32,6 +33,10 @@ func (c *EthereumClient) GetBlockByNumber(ctx context.Context, number *big.Int) 
 
 func (c *EthereumClient) GetTransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 	return c.client.TransactionReceipt(ctx, txHash)
+}
+
+func (c *EthereumClient) CallContract(ctx context.Context, to common.Address, data []byte) ([]byte, error) {
+	return c.client.CallContract(ctx, ethereum.CallMsg{To: &to, Data: data}, nil)
 }
 
 func (c *EthereumClient) SubscribeNewBlocks(ctx context.Context) (chan *types.Header, error) {

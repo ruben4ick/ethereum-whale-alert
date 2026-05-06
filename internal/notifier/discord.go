@@ -47,9 +47,13 @@ func (d *Discord) Notify(ctx context.Context, event AlertEvent) error {
 	title := "🐋 Whale Transaction Detected"
 	valueLabel := event.ValueETH + " ETH"
 	color := discordColorBlue
-	if event.Type == TypeERC20 {
+	switch event.Type {
+	case TypeERC20:
 		title = "🐋 Whale ERC-20 Transfer Detected"
 		valueLabel = event.TokenAmount + " tokens (≈ " + event.ValueETH + " ETH)"
+	case TypeSwap:
+		title = "🐋 Whale DEX Swap Detected"
+		valueLabel = event.TokenAmount + " (≈ " + event.ValueETH + " ETH)"
 	}
 	if event.Status == StatusReorged {
 		title = "⚠️ REORG: Previous Whale Alert Invalidated"

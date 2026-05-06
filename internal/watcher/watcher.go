@@ -25,11 +25,13 @@ type Client interface {
 	SubscribeNewBlocks(ctx context.Context) (chan *types.Header, error)
 	GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 	GetTransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	CallContract(ctx context.Context, to common.Address, data []byte) ([]byte, error)
 }
 
 type Config struct {
 	ThresholdETH       float64
 	WatchERC20         bool
+	WatchSwaps         bool
 	ConfirmationBlocks int
 }
 
@@ -39,9 +41,11 @@ type Watcher struct {
 	thresholdETH       float64
 	notifiers          []notifier.Notifier
 	watchERC20         bool
+	watchSwaps         bool
 	priceFetcher       PriceFetcher
 	confirmationBlocks int
 	pending            map[common.Hash]notifier.AlertEvent
+	poolCache          map[common.Address]poolPair
 }
 
 func New(client Client, cfg Config, pf PriceFetcher, notifiers ...notifier.Notifier) *Watcher {
@@ -57,9 +61,11 @@ func New(client Client, cfg Config, pf PriceFetcher, notifiers ...notifier.Notif
 		thresholdETH:       cfg.ThresholdETH,
 		notifiers:          notifiers,
 		watchERC20:         cfg.WatchERC20,
+		watchSwaps:         cfg.WatchSwaps,
 		priceFetcher:       pf,
 		confirmationBlocks: cfg.ConfirmationBlocks,
 		pending:            make(map[common.Hash]notifier.AlertEvent),
+		poolCache:          make(map[common.Address]poolPair),
 	}
 }
 
@@ -109,6 +115,16 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 		// ERC-20 Transfer events.
 		if w.watchERC20 {
 			events := w.checkERC20Transfer(ctx, tx, block.Number(), blockHash, blockTime)
+			for _, event := range events {
+				whaleCount++
+				w.notify(ctx, event)
+				w.trackPending(tx.Hash(), event)
+			}
+		}
+
+		// Uniswap V2 swap events.
+		if w.watchSwaps {
+			events := w.checkSwaps(ctx, tx, block.Number(), blockHash, blockTime)
 			for _, event := range events {
 				whaleCount++
 				w.notify(ctx, event)

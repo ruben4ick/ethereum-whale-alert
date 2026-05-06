@@ -9,6 +9,7 @@ type Config struct {
 	SlackWebhookURL    string  `envconfig:"SLACK_WEBHOOK_URL"`
 	MetricsPort        string  `envconfig:"METRICS_PORT" default:":2112"`
 	WatchERC20         bool    `envconfig:"WATCH_ERC20" default:"false"`
+	WatchSwaps         bool    `envconfig:"WATCH_SWAPS" default:"false"`
 	PriceCacheTTL      int     `envconfig:"PRICE_CACHE_TTL_SEC" default:"1800"`
 	CoinGeckoAPIKey    string  `envconfig:"COINGECKO_API_KEY"`
 	ConfirmationBlocks int     `envconfig:"CONFIRMATION_BLOCKS" default:"2"`
