@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	discordColorBlue = 3447003
+	discordColorRed  = 15158332
+)
+
 type Discord struct {
 	webhookURL string
 	httpClient *http.Client
@@ -41,9 +46,14 @@ type discordField struct {
 func (d *Discord) Notify(ctx context.Context, event AlertEvent) error {
 	title := "🐋 Whale Transaction Detected"
 	valueLabel := event.ValueETH + " ETH"
+	color := discordColorBlue
 	if event.Type == TypeERC20 {
 		title = "🐋 Whale ERC-20 Transfer Detected"
 		valueLabel = event.TokenAmount + " tokens (≈ " + event.ValueETH + " ETH)"
+	}
+	if event.Status == StatusReorged {
+		title = "⚠️ REORG: Previous Whale Alert Invalidated"
+		color = discordColorRed
 	}
 
 	fields := []discordField{
@@ -63,7 +73,7 @@ func (d *Discord) Notify(ctx context.Context, event AlertEvent) error {
 		Embeds: []discordEmbed{
 			{
 				Title:     title,
-				Color:     3447003,
+				Color:     color,
 				Fields:    fields,
 				Timestamp: event.Timestamp.UTC().Format(time.RFC3339),
 			},

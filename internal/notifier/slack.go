@@ -44,6 +44,9 @@ func (s *Slack) Notify(ctx context.Context, event AlertEvent) error {
 		title = "🐋 Whale ERC-20 Transfer Detected"
 		valueLabel = event.TokenAmount + " tokens (≈ " + event.ValueETH + " ETH)"
 	}
+	if event.Status == StatusReorged {
+		title = "⚠️ REORG: Previous Whale Alert Invalidated"
+	}
 
 	fields := []slackText{
 		{Type: "mrkdwn", Text: "*Tx Hash*\n" + event.TxHash},

@@ -77,4 +77,20 @@ var (
 		Help:    "Time spent sending a notification webhook.",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"channel"})
+
+	// Reorg / confirmation metrics
+	AlertsReorgedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "alerts_reorged_total",
+		Help: "Total number of previously fired alerts invalidated by a chain reorg.",
+	})
+
+	AlertsConfirmedTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "alerts_confirmed_total",
+		Help: "Total number of alerts confirmed after the configured confirmation depth.",
+	})
+
+	PendingAlerts = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "pending_alerts",
+		Help: "Number of alerts awaiting confirmation re-check.",
+	})
 )

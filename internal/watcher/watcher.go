@@ -28,17 +28,20 @@ type Client interface {
 }
 
 type Config struct {
-	ThresholdETH float64
-	WatchERC20   bool
+	ThresholdETH       float64
+	WatchERC20         bool
+	ConfirmationBlocks int
 }
 
 type Watcher struct {
-	client       Client
-	thresholdWei *big.Int
-	thresholdETH float64
-	notifiers    []notifier.Notifier
-	watchERC20   bool
-	priceFetcher PriceFetcher
+	client             Client
+	thresholdWei       *big.Int
+	thresholdETH       float64
+	notifiers          []notifier.Notifier
+	watchERC20         bool
+	priceFetcher       PriceFetcher
+	confirmationBlocks int
+	pending            map[common.Hash]notifier.AlertEvent
 }
 
 func New(client Client, cfg Config, pf PriceFetcher, notifiers ...notifier.Notifier) *Watcher {
@@ -49,12 +52,14 @@ func New(client Client, cfg Config, pf PriceFetcher, notifiers ...notifier.Notif
 	wei, _ := thresholdWei.Int(nil)
 
 	return &Watcher{
-		client:       client,
-		thresholdWei: wei,
-		thresholdETH: cfg.ThresholdETH,
-		notifiers:    notifiers,
-		watchERC20:   cfg.WatchERC20,
-		priceFetcher: pf,
+		client:             client,
+		thresholdWei:       wei,
+		thresholdETH:       cfg.ThresholdETH,
+		notifiers:          notifiers,
+		watchERC20:         cfg.WatchERC20,
+		priceFetcher:       pf,
+		confirmationBlocks: cfg.ConfirmationBlocks,
+		pending:            make(map[common.Hash]notifier.AlertEvent),
 	}
 }
 
@@ -79,30 +84,35 @@ func (w *Watcher) Run(ctx context.Context) error {
 func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 	start := time.Now()
 
+	w.checkReorgs(ctx, number)
+
 	block, err := w.client.GetBlockByNumber(ctx, number)
 	if err != nil {
 		return fmt.Errorf("get a block by number: %w", err)
 	}
 
 	blockTime := time.Unix(int64(block.Time()), 0)
+	blockHash := block.Hash()
 
 	whaleCount := 0
 	for _, tx := range block.Transactions() {
 		// Native ETH whale transfers.
 		if tx.Value().Cmp(w.thresholdWei) >= 0 {
 			whaleCount++
-			event := w.buildNativeEvent(tx, block.Number(), blockTime)
+			event := w.buildNativeEvent(tx, block.Number(), blockHash, blockTime)
 			metrics.WhaleTxTotal.WithLabelValues("native_eth").Inc()
 			metrics.WhaleTxValueETH.Observe(ethValue(tx.Value()))
 			w.notify(ctx, event)
+			w.trackPending(tx.Hash(), event)
 		}
 
 		// ERC-20 Transfer events.
 		if w.watchERC20 {
-			events := w.checkERC20Transfer(ctx, tx, block.Number(), blockTime)
+			events := w.checkERC20Transfer(ctx, tx, block.Number(), blockHash, blockTime)
 			for _, event := range events {
 				whaleCount++
 				w.notify(ctx, event)
+				w.trackPending(tx.Hash(), event)
 			}
 		}
 	}
@@ -131,7 +141,7 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 	return nil
 }
 
-func (w *Watcher) checkERC20Transfer(ctx context.Context, tx *types.Transaction, blockNumber *big.Int, blockTime time.Time) []notifier.AlertEvent {
+func (w *Watcher) checkERC20Transfer(ctx context.Context, tx *types.Transaction, blockNumber *big.Int, blockHash common.Hash, blockTime time.Time) []notifier.AlertEvent {
 	receipt, err := w.client.GetTransactionReceipt(ctx, tx.Hash())
 	if err != nil {
 		slog.Error("failed to get receipt", "tx", tx.Hash().Hex(), "error", err)
@@ -172,6 +182,7 @@ func (w *Watcher) checkERC20Transfer(ctx context.Context, tx *types.Transaction,
 		events = append(events, notifier.AlertEvent{
 			TxHash:      tx.Hash().Hex(),
 			BlockNumber: blockNumber,
+			BlockHash:   blockHash.Hex(),
 			ValueETH:    fmt.Sprintf("%.4f", valueInETH),
 			From:        from.Hex(),
 			To:          to.Hex(),
@@ -179,12 +190,13 @@ func (w *Watcher) checkERC20Transfer(ctx context.Context, tx *types.Transaction,
 			Token:       tokenAddr,
 			TokenAmount: displayValue.Text('f', 4),
 			Timestamp:   blockTime,
+			Status:      notifier.StatusDetected,
 		})
 	}
 	return events
 }
 
-func (w *Watcher) buildNativeEvent(tx *types.Transaction, blockNumber *big.Int, blockTime time.Time) notifier.AlertEvent {
+func (w *Watcher) buildNativeEvent(tx *types.Transaction, blockNumber *big.Int, blockHash common.Hash, blockTime time.Time) notifier.AlertEvent {
 	ethVal := new(big.Float).Quo(
 		new(big.Float).SetInt(tx.Value()),
 		big.NewFloat(1e18),
@@ -198,10 +210,12 @@ func (w *Watcher) buildNativeEvent(tx *types.Transaction, blockNumber *big.Int, 
 	return notifier.AlertEvent{
 		TxHash:      tx.Hash().Hex(),
 		BlockNumber: blockNumber,
+		BlockHash:   blockHash.Hex(),
 		ValueETH:    ethVal.Text('f', 4),
 		To:          to,
 		Type:        notifier.TypeNativeETH,
 		Timestamp:   blockTime,
+		Status:      notifier.StatusDetected,
 	}
 }
 
@@ -229,4 +243,57 @@ func ethValue(wei *big.Int) float64 {
 		big.NewFloat(1e18),
 	).Float64()
 	return v
+}
+
+func (w *Watcher) trackPending(txHash common.Hash, event notifier.AlertEvent) {
+	if w.confirmationBlocks == 0 {
+		return
+	}
+	w.pending[txHash] = event
+	metrics.PendingAlerts.Set(float64(len(w.pending)))
+}
+
+func (w *Watcher) checkReorgs(ctx context.Context, currentBlock *big.Int) {
+	if w.confirmationBlocks == 0 || len(w.pending) == 0 {
+		return
+	}
+
+	threshold := new(big.Int).Sub(currentBlock, big.NewInt(int64(w.confirmationBlocks)))
+
+	for txHash, original := range w.pending {
+		if original.BlockNumber.Cmp(threshold) > 0 {
+			continue
+		}
+
+		receipt, err := w.client.GetTransactionReceipt(ctx, txHash)
+		reorged := false
+		switch {
+		case err != nil:
+			slog.Warn("reorg-check: receipt lookup failed, treating as reorg",
+				"tx_hash", txHash.Hex(), "error", err)
+			reorged = true
+		case receipt == nil:
+			reorged = true
+		case receipt.BlockHash.Hex() != original.BlockHash:
+			reorged = true
+		}
+
+		if reorged {
+			metrics.AlertsReorgedTotal.Inc()
+			correction := original
+			correction.Status = notifier.StatusReorged
+			slog.Warn("reorg detected for previously alerted tx",
+				"tx_hash", txHash.Hex(),
+				"original_block", original.BlockNumber,
+				"original_block_hash", original.BlockHash,
+			)
+			w.notify(ctx, correction)
+		} else {
+			metrics.AlertsConfirmedTotal.Inc()
+		}
+
+		delete(w.pending, txHash)
+	}
+
+	metrics.PendingAlerts.Set(float64(len(w.pending)))
 }

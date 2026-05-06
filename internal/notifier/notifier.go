@@ -15,6 +15,7 @@ type Notifier interface {
 type AlertEvent struct {
 	TxHash      string
 	BlockNumber *big.Int
+	BlockHash   string
 	ValueETH    string
 	From        string
 	To          string
@@ -22,6 +23,7 @@ type AlertEvent struct {
 	Token       string
 	TokenAmount string // raw token amount (e.g. "1000000.0000")
 	Timestamp   time.Time
+	Status      Status
 }
 
 type Type string
@@ -29,6 +31,13 @@ type Type string
 const (
 	TypeNativeETH Type = "native_eth"
 	TypeERC20     Type = "erc20"
+)
+
+type Status string
+
+const (
+	StatusDetected Status = "detected"
+	StatusReorged  Status = "reorged"
 )
 
 type metricsNotifier struct {

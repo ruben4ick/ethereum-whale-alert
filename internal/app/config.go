@@ -3,14 +3,15 @@ package app
 import "github.com/kelseyhightower/envconfig"
 
 type Config struct {
-	GethWSURL         string  `envconfig:"GETH_WS_URL" required:"true"`
-	MinThresholdETH   float64 `envconfig:"MIN_THRESHOLD_ETH" default:"0.1"`
-	DiscordWebhookURL string  `envconfig:"DISCORD_WEBHOOK_URL"`
-	SlackWebhookURL   string  `envconfig:"SLACK_WEBHOOK_URL"`
-	MetricsPort       string  `envconfig:"METRICS_PORT" default:":2112"`
-	WatchERC20        bool    `envconfig:"WATCH_ERC20" default:"false"`
-	PriceCacheTTL     int     `envconfig:"PRICE_CACHE_TTL_SEC" default:"1800"`
-	CoinGeckoAPIKey   string  `envconfig:"COINGECKO_API_KEY"`
+	GethWSURL          string  `envconfig:"GETH_WS_URL" required:"true"`
+	MinThresholdETH    float64 `envconfig:"MIN_THRESHOLD_ETH" default:"0.1"`
+	DiscordWebhookURL  string  `envconfig:"DISCORD_WEBHOOK_URL"`
+	SlackWebhookURL    string  `envconfig:"SLACK_WEBHOOK_URL"`
+	MetricsPort        string  `envconfig:"METRICS_PORT" default:":2112"`
+	WatchERC20         bool    `envconfig:"WATCH_ERC20" default:"false"`
+	PriceCacheTTL      int     `envconfig:"PRICE_CACHE_TTL_SEC" default:"1800"`
+	CoinGeckoAPIKey    string  `envconfig:"COINGECKO_API_KEY"`
+	ConfirmationBlocks int     `envconfig:"CONFIRMATION_BLOCKS" default:"2"`
 }
 
 func (cfg *Config) Process() error {

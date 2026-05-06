@@ -67,8 +67,9 @@ func (a *App) Run(ctx context.Context) error {
 	go pf.Run(ctx)
 
 	w := watcher.New(ethereumClient, watcher.Config{
-		ThresholdETH: a.cfg.MinThresholdETH,
-		WatchERC20:   a.cfg.WatchERC20,
+		ThresholdETH:       a.cfg.MinThresholdETH,
+		WatchERC20:         a.cfg.WatchERC20,
+		ConfirmationBlocks: a.cfg.ConfirmationBlocks,
 	}, pf, notifiers...)
 
 	go func() {
