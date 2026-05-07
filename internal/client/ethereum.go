@@ -39,6 +39,10 @@ func (c *EthereumClient) CallContract(ctx context.Context, to common.Address, da
 	return c.client.CallContract(ctx, ethereum.CallMsg{To: &to, Data: data}, nil)
 }
 
+func (c *EthereumClient) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error) {
+	return c.client.FilterLogs(ctx, q)
+}
+
 func (c *EthereumClient) SubscribeNewBlocks(ctx context.Context) (chan *types.Header, error) {
 	headers := make(chan *types.Header)
 	sub, err := c.client.SubscribeNewHead(ctx, headers)

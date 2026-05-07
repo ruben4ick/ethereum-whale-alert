@@ -10,6 +10,7 @@ import (
 	"ethereum-whale-alert/internal/metrics"
 	"ethereum-whale-alert/internal/notifier"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -26,6 +27,7 @@ type Client interface {
 	GetBlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 	GetTransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 	CallContract(ctx context.Context, to common.Address, data []byte) ([]byte, error)
+	FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error)
 }
 
 type Config struct {
@@ -100,6 +102,11 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 	blockTime := time.Unix(int64(block.Time()), 0)
 	blockHash := block.Hash()
 
+	logsByTx, err := w.fetchEventLogs(ctx, number)
+	if err != nil {
+		return fmt.Errorf("fetch event logs: %w", err)
+	}
+
 	whaleCount := 0
 	for _, tx := range block.Transactions() {
 		// Native ETH whale transfers.
@@ -112,9 +119,11 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 			w.trackPending(tx.Hash(), event)
 		}
 
+		txLogs := logsByTx[tx.Hash()]
+
 		// ERC-20 Transfer events.
 		if w.watchERC20 {
-			events := w.checkERC20Transfer(ctx, tx, block.Number(), blockHash, blockTime)
+			events := w.checkERC20Transfer(ctx, txLogs, block.Number(), blockHash, blockTime)
 			for _, event := range events {
 				whaleCount++
 				w.notify(ctx, event)
@@ -124,7 +133,7 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 
 		// Uniswap V2 swap events.
 		if w.watchSwaps {
-			events := w.checkSwaps(ctx, tx, block.Number(), blockHash, blockTime)
+			events := w.checkSwaps(ctx, txLogs, block.Number(), blockHash, blockTime)
 			for _, event := range events {
 				whaleCount++
 				w.notify(ctx, event)
@@ -157,15 +166,38 @@ func (w *Watcher) processBlock(ctx context.Context, number *big.Int) error {
 	return nil
 }
 
-func (w *Watcher) checkERC20Transfer(ctx context.Context, tx *types.Transaction, blockNumber *big.Int, blockHash common.Hash, blockTime time.Time) []notifier.AlertEvent {
-	receipt, err := w.client.GetTransactionReceipt(ctx, tx.Hash())
-	if err != nil {
-		slog.Error("failed to get receipt", "tx", tx.Hash().Hex(), "error", err)
-		return nil
+func (w *Watcher) fetchEventLogs(ctx context.Context, number *big.Int) (map[common.Hash][]types.Log, error) {
+	if !w.watchERC20 && !w.watchSwaps {
+		return nil, nil
 	}
 
+	var sigs []common.Hash
+	if w.watchERC20 {
+		sigs = append(sigs, transferEventSig)
+	}
+	if w.watchSwaps {
+		sigs = append(sigs, swapEventSig)
+	}
+
+	logs, err := w.client.FilterLogs(ctx, ethereum.FilterQuery{
+		FromBlock: number,
+		ToBlock:   number,
+		Topics:    [][]common.Hash{sigs},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[common.Hash][]types.Log, len(logs))
+	for _, lg := range logs {
+		out[lg.TxHash] = append(out[lg.TxHash], lg)
+	}
+	return out, nil
+}
+
+func (w *Watcher) checkERC20Transfer(ctx context.Context, logs []types.Log, blockNumber *big.Int, blockHash common.Hash, blockTime time.Time) []notifier.AlertEvent {
 	var events []notifier.AlertEvent
-	for _, log := range receipt.Logs {
+	for _, log := range logs {
 		if len(log.Topics) != 3 || log.Topics[0] != transferEventSig {
 			continue
 		}
@@ -196,7 +228,7 @@ func (w *Watcher) checkERC20Transfer(ctx context.Context, tx *types.Transaction,
 		metrics.WhaleTxValueETH.Observe(valueInETH)
 
 		events = append(events, notifier.AlertEvent{
-			TxHash:      tx.Hash().Hex(),
+			TxHash:      log.TxHash.Hex(),
 			BlockNumber: blockNumber,
 			BlockHash:   blockHash.Hex(),
 			ValueETH:    fmt.Sprintf("%.4f", valueInETH),

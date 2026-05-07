@@ -29,14 +29,9 @@ type poolPair struct {
 	known  bool
 }
 
-func (w *Watcher) checkSwaps(ctx context.Context, tx *types.Transaction, blockNumber *big.Int, blockHash common.Hash, blockTime time.Time) []notifier.AlertEvent {
-	receipt, err := w.client.GetTransactionReceipt(ctx, tx.Hash())
-	if err != nil || receipt == nil {
-		return nil
-	}
-
+func (w *Watcher) checkSwaps(ctx context.Context, logs []types.Log, blockNumber *big.Int, blockHash common.Hash, blockTime time.Time) []notifier.AlertEvent {
 	var events []notifier.AlertEvent
-	for _, log := range receipt.Logs {
+	for _, log := range logs {
 		if len(log.Topics) != 3 || log.Topics[0] != swapEventSig {
 			continue
 		}
@@ -90,7 +85,7 @@ func (w *Watcher) checkSwaps(ctx context.Context, tx *types.Transaction, blockNu
 		metrics.WhaleTxValueETH.Observe(valueInETH)
 
 		events = append(events, notifier.AlertEvent{
-			TxHash:      tx.Hash().Hex(),
+			TxHash:      log.TxHash.Hex(),
 			BlockNumber: blockNumber,
 			BlockHash:   blockHash.Hex(),
 			ValueETH:    fmt.Sprintf("%.4f", valueInETH),
