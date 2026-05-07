@@ -20,10 +20,16 @@ import (
 // response payload sizes. We deliberately avoid go-ethereum's ethclient/rpc
 // here so that BytesIn / BytesOut measurements reflect what actually went over
 // the wire (after the provider's JSON serialization, before HTTP gzip).
+//
+// The rate limiter is denominated in throughput compute units per second,
+// matching the way Alchemy enforces CU/sec quotas. Each Call consumes
+// throughputCU tokens before issuing the HTTP request, so methods with high
+// throughput-CU cost (eth_getBlockReceipts = 500) are spaced out automatically
+// without causing 429s, while cheap methods (eth_getLogs = 60) run faster.
 type RawRPC struct {
 	url     string
 	http    *http.Client
-	limiter *rate.Limiter
+	limiter *rate.Limiter // tokens are throughput compute units
 	retries int
 	id      uint64
 }
@@ -49,22 +55,33 @@ type rpcEnvelope struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
-func NewRawRPC(url string, rps float64, retries int) *RawRPC {
-	burst := int(rps)
-	if burst < 1 {
-		burst = 1
+// maxThroughputCU is the largest single-call throughput-CU cost across all
+// methods we benchmark (eth_getBlockReceipts = 500). The token bucket's burst
+// must be at least this large, otherwise WaitN(500) on a burst=250 bucket
+// returns an immediate error ("Wait(n=500) exceeds limiter's burst 250").
+const maxThroughputCU = 500
+
+// NewRawRPC creates a client whose limiter holds throughputCUPS tokens/sec,
+// where each token = 1 throughput compute unit. Burst is sized so the most
+// expensive single call always fits.
+func NewRawRPC(url string, throughputCUPS float64, retries int) *RawRPC {
+	burst := int(throughputCUPS)
+	if burst < maxThroughputCU {
+		burst = maxThroughputCU
 	}
 	return &RawRPC{
 		url:     url,
 		http:    &http.Client{Timeout: 60 * time.Second},
-		limiter: rate.NewLimiter(rate.Limit(rps), burst),
+		limiter: rate.NewLimiter(rate.Limit(throughputCUPS), burst),
 		retries: retries,
 	}
 }
 
 // Call performs one JSON-RPC request and returns the parsed result bytes plus
 // transport-level measurements. Retries on rate-limit / transient errors.
-func (r *RawRPC) Call(ctx context.Context, method string, params []any) (*RawResponse, json.RawMessage, error) {
+// throughputCU is the method's throughput compute-unit cost; the limiter waits
+// for that many tokens before issuing the request.
+func (r *RawRPC) Call(ctx context.Context, method string, params []any, throughputCU int) (*RawResponse, json.RawMessage, error) {
 	id := atomic.AddUint64(&r.id, 1)
 	reqBody, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0",
@@ -76,9 +93,13 @@ func (r *RawRPC) Call(ctx context.Context, method string, params []any) (*RawRes
 		return nil, nil, fmt.Errorf("marshal: %w", err)
 	}
 
+	if throughputCU < 1 {
+		throughputCU = 1
+	}
+
 	var lastErr error
 	for attempt := 0; attempt <= r.retries; attempt++ {
-		if err := r.limiter.Wait(ctx); err != nil {
+		if err := r.limiter.WaitN(ctx, throughputCU); err != nil {
 			return nil, nil, err
 		}
 

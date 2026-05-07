@@ -10,6 +10,16 @@ import (
 	"time"
 )
 
+// Throughput CU costs (Alchemy) — used by the rate limiter to space out calls.
+// Differs from billing CU only for eth_getBlockReceipts.
+const (
+	tputBlockNumber      = 10
+	tputGetLogs          = 60
+	tputGetBlockByNumber = 20
+	tputGetBlockReceipts = 500
+	tputGetTxReceipt     = 20
+)
+
 // minLog parses only what we need from the JSON-RPC log object.
 type minLog struct {
 	BlockNumber string `json:"blockNumber"` // hex
@@ -57,7 +67,7 @@ func RunGetLogsPerBlock(ctx context.Context, rpc *RawRPC, blocks []uint64, concu
 	results, _ := runWorkers(ctx, blocks, concurrency, func(ctx context.Context, n uint64) BlockMeasurement {
 		m := BlockMeasurement{Method: MethodGetLogsPerBlock, BlockNumber: n}
 		params := []any{map[string]any{"fromBlock": hexBlock(n), "toBlock": hexBlock(n)}}
-		resp, result, err := rpc.Call(ctx, "eth_getLogs", params)
+		resp, result, err := rpc.Call(ctx, "eth_getLogs", params, tputGetLogs)
 		if err != nil {
 			m.Error = err.Error()
 			return m
@@ -108,7 +118,7 @@ func RunGetLogsRanged(ctx context.Context, rpc *RawRPC, blocks []uint64, chunkSi
 
 		m := BlockMeasurement{Method: MethodGetLogsRanged, BlockNumber: from}
 		params := []any{map[string]any{"fromBlock": hexBlock(from), "toBlock": hexBlock(to)}}
-		resp, result, err := rpc.Call(ctx, "eth_getLogs", params)
+		resp, result, err := rpc.Call(ctx, "eth_getLogs", params, tputGetLogs)
 		cm := ChunkMeasurement{StartBlock: from, EndBlock: to, LogsByBlk: map[uint64]int{}}
 		if err != nil {
 			m.Error = err.Error()
@@ -136,12 +146,12 @@ func RunGetLogsRanged(ctx context.Context, rpc *RawRPC, blocks []uint64, chunkSi
 	return chunks
 }
 
-// --- Method 3: eth_getBlockReceipts per block ------------------------------
+// Method 3: eth_getBlockReceipts per block
 
 func RunGetBlockReceipts(ctx context.Context, rpc *RawRPC, blocks []uint64, concurrency int) []BlockMeasurement {
 	results, _ := runWorkers(ctx, blocks, concurrency, func(ctx context.Context, n uint64) BlockMeasurement {
 		m := BlockMeasurement{Method: MethodGetBlockReceipts, BlockNumber: n}
-		resp, result, err := rpc.Call(ctx, "eth_getBlockReceipts", []any{hexBlock(n)})
+		resp, result, err := rpc.Call(ctx, "eth_getBlockReceipts", []any{hexBlock(n)}, tputGetBlockReceipts)
 		if err != nil {
 			m.Error = err.Error()
 			return m
@@ -161,7 +171,7 @@ func RunGetBlockReceipts(ctx context.Context, rpc *RawRPC, blocks []uint64, conc
 	return results
 }
 
-// --- Method 4: eth_getTransactionReceipt per tx ----------------------------
+// Method 4: eth_getTransactionReceipt per tx
 // Requires a preliminary eth_getBlockByNumber(false) per block to learn the
 // transaction hashes; we attribute that call's cost to the same block bucket,
 // since the workflow as a whole is what costs the user.
@@ -171,7 +181,7 @@ func RunGetTransactionReceiptsPerTx(ctx context.Context, rpc *RawRPC, blocks []u
 		m := BlockMeasurement{Method: MethodGetTransactionReceipts, BlockNumber: n}
 
 		// Step 1: fetch block to learn the tx hashes.
-		resp, result, err := rpc.Call(ctx, "eth_getBlockByNumber", []any{hexBlock(n), false})
+		resp, result, err := rpc.Call(ctx, "eth_getBlockByNumber", []any{hexBlock(n), false}, tputGetBlockByNumber)
 		if err != nil {
 			m.Error = "block: " + err.Error()
 			return m
@@ -190,7 +200,7 @@ func RunGetTransactionReceiptsPerTx(ctx context.Context, rpc *RawRPC, blocks []u
 		// Step 2: one getTransactionReceipt per tx, sequential per block (the
 		// outer worker pool already provides parallelism across blocks).
 		for _, txh := range blk.Transactions {
-			rresp, rresult, err := rpc.Call(ctx, "eth_getTransactionReceipt", []any{txh})
+			rresp, rresult, err := rpc.Call(ctx, "eth_getTransactionReceipt", []any{txh}, tputGetTxReceipt)
 			if err != nil {
 				m.Error = "receipt: " + err.Error()
 				return m

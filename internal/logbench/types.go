@@ -11,15 +11,6 @@ const (
 	MethodGetTransactionReceipts Method = "eth_getTransactionReceipt (per tx)"
 )
 
-func AllMethods() []Method {
-	return []Method{
-		MethodGetLogsPerBlock,
-		MethodGetLogsRanged,
-		MethodGetBlockReceipts,
-		MethodGetTransactionReceipts,
-	}
-}
-
 // BlockMeasurement is one measurement of a single method against a single block
 // (or the smallest unit of work the method operates on — a range chunk for ranged getLogs).
 type BlockMeasurement struct {
@@ -57,8 +48,8 @@ type MethodResult struct {
 type Config struct {
 	BlockCount    int
 	Concurrency   int
-	RangeChunk    int // for getLogs ranged: blocks per single RPC call
+	RangeChunk    int
 	CU            CUCosts
 	IncludeRanged bool
-	BlockNumbers  []uint64 // populated by Runner: same set of blocks for every method
+	BlockNumbers  []uint64
 }

@@ -1,9 +1,6 @@
 package logbench
 
-// CUCosts maps JSON-RPC method names to their compute-unit cost on a given provider.
-// Defaults below match Alchemy's published pricing table (May 2026 snapshot).
-//
-// Reference: https://docs.alchemy.com/reference/compute-unit-costs
+// Reference: https://www.alchemy.com/docs/reference/compute-unit-costs
 type CUCosts struct {
 	GetLogs               int
 	GetBlockReceipts      int
@@ -13,9 +10,21 @@ type CUCosts struct {
 
 func DefaultAlchemyCU() CUCosts {
 	return CUCosts{
-		GetLogs:               75,
+		GetLogs:               60,
+		GetBlockReceipts:      20,
+		GetTransactionReceipt: 20,
+		GetBlockByNumber:      20,
+	}
+}
+
+// DefaultAlchemyThroughputCU returns per-method throughput-CU costs (counts
+// against your CU/sec rate limit). Differs from billing CU only for
+// eth_getBlockReceipts, which costs 20 to bill but eats 500 throughput CU.
+func DefaultAlchemyThroughputCU() CUCosts {
+	return CUCosts{
+		GetLogs:               60,
 		GetBlockReceipts:      500,
-		GetTransactionReceipt: 15,
-		GetBlockByNumber:      16,
+		GetTransactionReceipt: 20,
+		GetBlockByNumber:      20,
 	}
 }

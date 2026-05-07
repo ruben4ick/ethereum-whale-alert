@@ -88,8 +88,6 @@ func WriteJSON(path string, s Summary) error {
 	return enc.Encode(s)
 }
 
-// WriteCSV writes one row per (method, measurement) so post-hoc analysis can
-// slice by method or by block.
 func WriteCSV(path string, results []MethodResult) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -154,7 +152,6 @@ func PrintComparison(s Summary, mismatches []string) {
 		)
 	}
 
-	// Show log count cross-check.
 	fmt.Println()
 	fmt.Println("Log counts (sanity check — should match across methods):")
 	for _, m := range s.Methods {
