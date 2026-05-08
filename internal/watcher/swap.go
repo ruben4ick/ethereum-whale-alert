@@ -65,7 +65,18 @@ func (w *Watcher) checkSwaps(ctx context.Context, logs []types.Log, blockNumber 
 			continue
 		}
 
-		valueInETH, ok := w.swapValueETH(ctx, tokenIn, amountIn)
+		decimalsIn, ok := w.tokenDecimals(ctx, tokenIn)
+		if !ok {
+			metrics.ERC20SkippedTotal.Inc()
+			continue
+		}
+		decimalsOut, ok := w.tokenDecimals(ctx, tokenOut)
+		if !ok {
+			metrics.ERC20SkippedTotal.Inc()
+			continue
+		}
+
+		valueInETH, ok := w.swapValueETH(ctx, tokenIn, amountIn, decimalsIn)
 		if !ok {
 			metrics.ERC20SkippedTotal.Inc()
 			continue
@@ -74,8 +85,8 @@ func (w *Watcher) checkSwaps(ctx context.Context, logs []types.Log, blockNumber 
 			continue
 		}
 
-		amountInLabel := formatTokenAmount(amountIn)
-		amountOutLabel := formatTokenAmount(amountOut)
+		amountInLabel := formatTokenAmount(amountIn, decimalsIn)
+		amountOutLabel := formatTokenAmount(amountOut, decimalsOut)
 		summary := fmt.Sprintf("%s %s → %s %s",
 			amountInLabel, shortAddr(tokenIn),
 			amountOutLabel, shortAddr(tokenOut),
@@ -101,18 +112,13 @@ func (w *Watcher) checkSwaps(ctx context.Context, logs []types.Log, blockNumber 
 	return events
 }
 
-// swapValueETH computes the ETH-equivalent value of `amount` of `token`
-// using the cached price feed. Token amount is assumed to use 18 decimals
-// — for high-precision USD computation a per-token decimals lookup would
-// be needed, but for whale-threshold filtering this approximation is fine.
-func (w *Watcher) swapValueETH(ctx context.Context, token common.Address, amount *big.Int) (float64, bool) {
+func (w *Watcher) swapValueETH(ctx context.Context, token common.Address, amount *big.Int, decimals uint8) (float64, bool) {
 	priceETH, ok := w.priceFetcher.PriceInETH(ctx, token.Hex())
 	if !ok {
 		return 0, false
 	}
 
-	amountFloat := new(big.Float).SetInt(amount)
-	scaled, _ := new(big.Float).Quo(amountFloat, big.NewFloat(1e18)).Float64()
+	scaled, _ := scaleByDecimals(amount, decimals).Float64()
 	return scaled * priceETH, true
 }
 
@@ -145,9 +151,8 @@ func (w *Watcher) callAddress(ctx context.Context, to common.Address, selector [
 	return common.BytesToAddress(out[12:32]), nil
 }
 
-func formatTokenAmount(amount *big.Int) string {
-	scaled := new(big.Float).Quo(new(big.Float).SetInt(amount), big.NewFloat(1e18))
-	return scaled.Text('f', 4)
+func formatTokenAmount(amount *big.Int, decimals uint8) string {
+	return scaleByDecimals(amount, decimals).Text('f', 4)
 }
 
 func shortAddr(a common.Address) string {

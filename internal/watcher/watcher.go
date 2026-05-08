@@ -48,6 +48,7 @@ type Watcher struct {
 	confirmationBlocks int
 	pending            map[common.Hash]notifier.AlertEvent
 	poolCache          map[common.Address]poolPair
+	decimalsCache      map[common.Address]tokenInfo
 }
 
 func New(client Client, cfg Config, pf PriceFetcher, notifiers ...notifier.Notifier) *Watcher {
@@ -68,6 +69,7 @@ func New(client Client, cfg Config, pf PriceFetcher, notifiers ...notifier.Notif
 		confirmationBlocks: cfg.ConfirmationBlocks,
 		pending:            make(map[common.Hash]notifier.AlertEvent),
 		poolCache:          make(map[common.Address]poolPair),
+		decimalsCache:      make(map[common.Address]tokenInfo),
 	}
 }
 
@@ -208,8 +210,14 @@ func (w *Watcher) checkERC20Transfer(ctx context.Context, logs []types.Log, bloc
 
 		tokenAddr := log.Address.Hex()
 
-		valueFloat := new(big.Float).SetInt(value)
-		displayValue := new(big.Float).Quo(valueFloat, big.NewFloat(1e18))
+		decimals, ok := w.tokenDecimals(ctx, log.Address)
+		if !ok {
+			slog.Debug("skipping erc20 transfer: decimals unavailable", "token", tokenAddr)
+			metrics.ERC20SkippedTotal.Inc()
+			continue
+		}
+
+		displayValue := scaleByDecimals(value, decimals)
 		tokenAmount, _ := displayValue.Float64()
 
 		tokenPriceETH, ok := w.priceFetcher.PriceInETH(ctx, tokenAddr)
