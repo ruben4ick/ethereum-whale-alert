@@ -64,7 +64,7 @@ func RunPolling(ctx context.Context, rpc *logbench.RawRPC, interval time.Duratio
 	first := true
 
 	tick := func() {
-		resp, result, err := rpc.Call(ctx, "eth_blockNumber", []any{})
+		resp, result, err := rpc.Call(ctx, "eth_blockNumber", []any{}, 10)
 		now := time.Now()
 		if err != nil {
 			if ctx.Err() == nil {

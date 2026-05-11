@@ -39,6 +39,22 @@ type Summary struct {
 	Methods     []MethodSummary `json:"methods"`
 }
 
+func blockTimestamps(runs []*Run) map[uint64]time.Time {
+	out := map[uint64]time.Time{}
+	for _, r := range runs {
+		events, _ := r.snapshot()
+		for _, e := range events {
+			if e.BlockTimestamp.IsZero() {
+				continue
+			}
+			if existing, ok := out[e.BlockNumber]; !ok || e.BlockTimestamp.Before(existing) {
+				out[e.BlockNumber] = e.BlockTimestamp
+			}
+		}
+	}
+	return out
+}
+
 func BuildSummary(out RunOutput, cu CUCosts) Summary {
 	s := Summary{
 		StartedAt:   out.StartedAt,
@@ -47,17 +63,7 @@ func BuildSummary(out RunOutput, cu CUCosts) Summary {
 		CU:          cu,
 	}
 
-	blockTs := map[uint64]time.Time{}
-	for _, r := range out.Runs {
-		events, _ := r.snapshot()
-		for _, e := range events {
-			if !e.BlockTimestamp.IsZero() {
-				if existing, ok := blockTs[e.BlockNumber]; !ok || e.BlockTimestamp.Before(existing) {
-					blockTs[e.BlockNumber] = e.BlockTimestamp
-				}
-			}
-		}
-	}
+	blockTs := blockTimestamps(out.Runs)
 
 	earliest := map[uint64]time.Time{}
 	for _, r := range out.Runs {
@@ -170,17 +176,7 @@ func WriteCSV(path string, out RunOutput) error {
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
-	blockTs := map[uint64]time.Time{}
-	for _, r := range out.Runs {
-		events, _ := r.snapshot()
-		for _, e := range events {
-			if !e.BlockTimestamp.IsZero() {
-				if existing, ok := blockTs[e.BlockNumber]; !ok || e.BlockTimestamp.Before(existing) {
-					blockTs[e.BlockNumber] = e.BlockTimestamp
-				}
-			}
-		}
-	}
+	blockTs := blockTimestamps(out.Runs)
 
 	header := []string{
 		"label", "method", "poll_interval_ms",
