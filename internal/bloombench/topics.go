@@ -8,8 +8,8 @@ import (
 type Topic struct {
 	Name      string
 	Hash      common.Hash
-	Rarity    string // popular | medium | rare | synthetic-absent
-	Signature string // human-readable, for the report
+	Rarity    string
+	Signature string
 }
 
 func DefaultTopics() []Topic {

@@ -21,15 +21,9 @@ type RunOutput struct {
 	FinishedAt time.Time
 }
 
-// Run starts the WebSocket subscriber and one polling goroutine per configured
-// interval, lets them collect events for cfg.Duration, and returns the
-// per-method runs. All goroutines share a single rate-limited HTTP client so
-// the combined RPS stays within the provider's quota.
 func (r *Runner) Run(ctx context.Context) RunOutput {
 	rps := r.cfg.HTTPRPS
 	if rps <= 0 {
-		// One poller per interval, with the shortest interval being typically 1s,
-		// so a sane default budget is num_intervals × (1/shortest) plus headroom.
 		rps = 25
 	}
 	rpc := logbench.NewRawRPC(r.cfg.HTTPURL, rps, r.cfg.MaxRetries)

@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,7 +26,7 @@ type Config struct {
 	Concurrency       int     `envconfig:"BENCH_CONCURRENCY" default:"4"`
 	RequestsPerSecond float64 `envconfig:"BENCH_RPS" default:"3"`
 	MaxRetries        int     `envconfig:"BENCH_MAX_RETRIES" default:"10"`
-	OutputPrefix      string  `envconfig:"BENCH_OUT" default:"./bloom-results"`
+	OutputPrefix      string  `envconfig:"BENCH_OUT" default:"./benchresults/bloom"`
 }
 
 type ethClientAdapter struct {
@@ -159,6 +160,11 @@ func main() {
 
 	csvPath := cfg.OutputPrefix + ".csv"
 	jsonPath := cfg.OutputPrefix + ".json"
+
+	if err := os.MkdirAll(filepath.Dir(cfg.OutputPrefix), 0o755); err != nil {
+		slog.Error("create output dir", "error", err)
+		os.Exit(1)
+	}
 
 	if err := bloombench.WriteCSV(csvPath, results, topics); err != nil {
 		slog.Error("write csv", "error", err)

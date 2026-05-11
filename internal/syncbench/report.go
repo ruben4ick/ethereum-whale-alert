@@ -11,29 +11,24 @@ import (
 )
 
 type MethodSummary struct {
-	Method       string `json:"method"`
-	Label        string `json:"label"`
-	PollInterval string `json:"poll_interval,omitempty"`
-	BlocksSeen   int    `json:"blocks_seen"`
-	RPCCalls     int    `json:"rpc_calls"`
-	BytesIn      int64  `json:"bytes_in"`
-	BytesOut     int64  `json:"bytes_out"`
-	TotalCU      int    `json:"total_cu"`
-	// Latency relative to block.timestamp (header-declared seal time). This is
-	// the absolute end-to-end "block sealed → delivered to app" delay and is
-	// the headline metric for real-time monitoring.
+	Method       string  `json:"method"`
+	Label        string  `json:"label"`
+	PollInterval string  `json:"poll_interval,omitempty"`
+	BlocksSeen   int     `json:"blocks_seen"`
+	RPCCalls     int     `json:"rpc_calls"`
+	BytesIn      int64   `json:"bytes_in"`
+	BytesOut     int64   `json:"bytes_out"`
+	TotalCU      int     `json:"total_cu"`
 	AvgLatencyMs float64 `json:"avg_latency_ms"`
 	P50LatencyMs float64 `json:"p50_latency_ms"`
 	P95LatencyMs float64 `json:"p95_latency_ms"`
 	P99LatencyMs float64 `json:"p99_latency_ms"`
 	MaxLatencyMs float64 `json:"max_latency_ms"`
-	// Latency relative to the fastest method that observed the same block.
-	// For WS this is usually 0; for polling it shows the penalty of pull vs push.
-	RelAvgMs float64 `json:"rel_avg_ms"`
-	RelP50Ms float64 `json:"rel_p50_ms"`
-	RelP95Ms float64 `json:"rel_p95_ms"`
-	RelP99Ms float64 `json:"rel_p99_ms"`
-	RelMaxMs float64 `json:"rel_max_ms"`
+	RelAvgMs     float64 `json:"rel_avg_ms"`
+	RelP50Ms     float64 `json:"rel_p50_ms"`
+	RelP95Ms     float64 `json:"rel_p95_ms"`
+	RelP99Ms     float64 `json:"rel_p99_ms"`
+	RelMaxMs     float64 `json:"rel_max_ms"`
 }
 
 type Summary struct {
@@ -44,10 +39,6 @@ type Summary struct {
 	Methods     []MethodSummary `json:"methods"`
 }
 
-// BuildSummary aggregates per-method stats. Block timestamps and the
-// "fastest method per block" baseline are derived from the union of all runs:
-// we treat the WS run as authoritative for header timestamps, and the earliest
-// ObservedAt across runs as the baseline for relative latency.
 func BuildSummary(out RunOutput, cu CUCosts) Summary {
 	s := Summary{
 		StartedAt:   out.StartedAt,
@@ -56,8 +47,6 @@ func BuildSummary(out RunOutput, cu CUCosts) Summary {
 		CU:          cu,
 	}
 
-	// 1. Build blockNum → timestamp map from any run that carries header
-	// timestamps (WS). Polling events have zero BlockTimestamp.
 	blockTs := map[uint64]time.Time{}
 	for _, r := range out.Runs {
 		events, _ := r.snapshot()
@@ -70,8 +59,6 @@ func BuildSummary(out RunOutput, cu CUCosts) Summary {
 		}
 	}
 
-	// 2. Build blockNum → earliest ObservedAt across all runs (the baseline for
-	// relative latency).
 	earliest := map[uint64]time.Time{}
 	for _, r := range out.Runs {
 		events, _ := r.snapshot()
@@ -82,7 +69,6 @@ func BuildSummary(out RunOutput, cu CUCosts) Summary {
 		}
 	}
 
-	// 3. Per-run summaries.
 	for _, r := range out.Runs {
 		events, stats := r.snapshot()
 		ms := MethodSummary{
@@ -103,10 +89,6 @@ func BuildSummary(out RunOutput, cu CUCosts) Summary {
 			if ts, ok := blockTs[e.BlockNumber]; ok {
 				d := e.ObservedAt.Sub(ts)
 				if d < 0 {
-					// The header timestamp is set by the proposer and may be
-					// slightly in the future relative to wall-clock, especially
-					// on testnets — clamp to 0 so the percentiles aren't
-					// distorted by tiny negatives.
 					d = 0
 				}
 				absLat = append(absLat, d)
@@ -179,8 +161,6 @@ func WriteJSON(path string, s Summary) error {
 	return enc.Encode(s)
 }
 
-// WriteCSV writes one row per (method, block_event) so per-block latency can
-// be plotted post-hoc.
 func WriteCSV(path string, out RunOutput) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -190,7 +170,6 @@ func WriteCSV(path string, out RunOutput) error {
 	w := csv.NewWriter(f)
 	defer w.Flush()
 
-	// Resolve block timestamps once across all runs.
 	blockTs := map[uint64]time.Time{}
 	for _, r := range out.Runs {
 		events, _ := r.snapshot()

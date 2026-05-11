@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"ethereum-whale-alert/internal/logbench"
@@ -12,18 +13,13 @@ import (
 )
 
 type Config struct {
-	GethHTTPURL string `envconfig:"GETH_HTTP_URL"`
-	BlockCount  int    `envconfig:"BENCH_BLOCKS" default:"50"`
-	Concurrency int    `envconfig:"BENCH_CONCURRENCY" default:"4"`
-	// ThroughputCUPS is the rate-limit budget in throughput compute units per
-	// second. Each call consumes its method's throughput-CU cost, so this
-	// directly maps to the Alchemy CU/sec quota of your plan.
-	// Defaults are set well below the Free plan limit (330 CUPS) to leave room
-	// for jitter and avoid 429s.
+	GethHTTPURL    string  `envconfig:"GETH_HTTP_URL"`
+	BlockCount     int     `envconfig:"BENCH_BLOCKS" default:"50"`
+	Concurrency    int     `envconfig:"BENCH_CONCURRENCY" default:"4"`
 	ThroughputCUPS float64 `envconfig:"BENCH_CUPS" default:"250"`
 	MaxRetries     int     `envconfig:"BENCH_MAX_RETRIES" default:"10"`
 	RangeChunk     int     `envconfig:"BENCH_RANGE_CHUNK" default:"10"`
-	OutputPrefix   string  `envconfig:"BENCH_OUT" default:"./logbench-results"`
+	OutputPrefix   string  `envconfig:"BENCH_OUT" default:"./benchresults/logbench"`
 }
 
 func main() {
@@ -66,6 +62,11 @@ func main() {
 
 	csvPath := cfg.OutputPrefix + ".csv"
 	jsonPath := cfg.OutputPrefix + ".json"
+
+	if err := os.MkdirAll(filepath.Dir(cfg.OutputPrefix), 0o755); err != nil {
+		slog.Error("create output dir", "error", err)
+		os.Exit(1)
+	}
 
 	if err := logbench.WriteCSV(csvPath, out.Results); err != nil {
 		slog.Error("write csv", "error", err)

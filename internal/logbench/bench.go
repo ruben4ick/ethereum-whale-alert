@@ -18,15 +18,13 @@ func New(rpc *RawRPC, cfg Config) *Runner {
 	return &Runner{rpc: rpc, cfg: cfg}
 }
 
-// PickBlocks picks a contiguous range of the latest cfg.BlockCount blocks.
 func (r *Runner) PickBlocks(ctx context.Context) ([]uint64, error) {
-	resp, result, err := r.rpc.Call(ctx, "eth_blockNumber", []any{}, tputBlockNumber)
+	_, result, err := r.rpc.Call(ctx, "eth_blockNumber", []any{}, tputBlockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("blockNumber: %w", err)
 	}
-	_ = resp
 	var hex string
-	if err := decodeJSON(result, &hex); err != nil {
+	if err := json.Unmarshal(result, &hex); err != nil {
 		return nil, fmt.Errorf("decode blockNumber: %w", err)
 	}
 	latest, err := parseHexUint(hex)
@@ -46,7 +44,7 @@ func (r *Runner) PickBlocks(ctx context.Context) ([]uint64, error) {
 
 type RunOutput struct {
 	Results    []MethodResult
-	Mismatches []string // empty if log counts agree across methods, per block
+	Mismatches []string
 }
 
 func (r *Runner) Run(ctx context.Context, blocks []uint64) RunOutput {
@@ -62,8 +60,7 @@ func (r *Runner) Run(ctx context.Context, blocks []uint64) RunOutput {
 	slog.Info("running method", "method", MethodGetLogsRanged, "chunk_blocks", r.cfg.RangeChunk)
 	t0 = time.Now()
 	chunks := RunGetLogsRanged(ctx, r.rpc, blocks, r.cfg.RangeChunk)
-	rangedMs := chunkToMeasurements(chunks)
-	out.Results = append(out.Results, summarize(MethodGetLogsRanged, rangedMs, time.Since(t0), r.cfg.CU, bc))
+	out.Results = append(out.Results, summarize(MethodGetLogsRanged, chunkToMeasurements(chunks), time.Since(t0), r.cfg.CU, bc))
 	rangedByBlk := mergeChunks(chunks)
 
 	slog.Info("running method", "method", MethodGetBlockReceipts)
@@ -134,15 +131,12 @@ func computeCU(method Method, ms []BlockMeasurement, cu CUCosts) int {
 	total := 0
 	switch method {
 	case MethodGetLogsPerBlock, MethodGetLogsRanged:
-		// One getLogs call per measurement.
 		total = len(ms) * cu.GetLogs
 	case MethodGetBlockReceipts:
 		total = len(ms) * cu.GetBlockReceipts
 	case MethodGetTransactionReceipts:
-		// Each block costs 1× getBlockByNumber + N× getTransactionReceipt.
 		for _, m := range ms {
 			total += cu.GetBlockByNumber
-			// RPCCalls = 1 (block) + N (receipts), so N = RPCCalls - 1.
 			n := m.RPCCalls - 1
 			if n < 0 {
 				n = 0
@@ -153,9 +147,6 @@ func computeCU(method Method, ms []BlockMeasurement, cu CUCosts) int {
 	return total
 }
 
-// CrossCheckLogs verifies that all per-block methods agree on the log count
-// for every block. Returns a list of human-readable mismatches (empty if all
-// methods agree). Ranged is normalized via the LogsByBlk map.
 func CrossCheckLogs(blocks []uint64, perBlock []BlockMeasurement, rangedBlk map[uint64]int, blkRcpts, perTx []BlockMeasurement) []string {
 	pb := indexBy(perBlock)
 	br := indexBy(blkRcpts)
@@ -182,9 +173,4 @@ func indexBy(ms []BlockMeasurement) map[uint64]int {
 		out[m.BlockNumber] = m.LogCount
 	}
 	return out
-}
-
-// decodeJSON is a tiny helper to keep call sites readable.
-func decodeJSON(raw []byte, dst any) error {
-	return json.Unmarshal(raw, dst)
 }

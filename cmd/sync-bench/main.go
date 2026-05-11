@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,7 +22,7 @@ type Config struct {
 	PollIntervals string        `envconfig:"BENCH_POLL_INTERVALS" default:"1s,3s,6s,12s"`
 	HTTPRPS       float64       `envconfig:"BENCH_RPS" default:"25"`
 	MaxRetries    int           `envconfig:"BENCH_MAX_RETRIES" default:"5"`
-	OutputPrefix  string        `envconfig:"BENCH_OUT" default:"./syncbench-results"`
+	OutputPrefix  string        `envconfig:"BENCH_OUT" default:"./benchresults/syncbench"`
 }
 
 func main() {
@@ -63,6 +64,11 @@ func main() {
 
 	csvPath := cfg.OutputPrefix + ".csv"
 	jsonPath := cfg.OutputPrefix + ".json"
+
+	if err := os.MkdirAll(filepath.Dir(cfg.OutputPrefix), 0o755); err != nil {
+		slog.Error("create output dir", "error", err)
+		os.Exit(1)
+	}
 
 	summary := syncbench.BuildSummary(out, syncbench.DefaultAlchemyCU())
 	if err := syncbench.WriteCSV(csvPath, out); err != nil {
