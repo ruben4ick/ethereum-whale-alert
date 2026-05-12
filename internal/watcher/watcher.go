@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"sync"
 	"time"
 
 	"ethereum-whale-alert/internal/metrics"
@@ -286,11 +287,17 @@ func (w *Watcher) notify(ctx context.Context, event notifier.AlertEvent) {
 		"token", event.Token,
 	)
 
+	var wg sync.WaitGroup
 	for _, n := range w.notifiers {
-		if err := n.Notify(ctx, event); err != nil {
-			slog.Error("failed to send notification", "error", err)
-		}
+		wg.Add(1)
+		go func(n notifier.Notifier) {
+			defer wg.Done()
+			if err := n.Notify(ctx, event); err != nil {
+				slog.Error("failed to send notification", "error", err)
+			}
+		}(n)
 	}
+	wg.Wait()
 }
 
 func ethValue(wei *big.Int) float64 {
