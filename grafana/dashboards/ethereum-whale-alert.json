@@ -230,32 +230,6 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
-      "id": 104,
-      "title": "Whale Transaction Log",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 23 },
-      "id": 20,
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "targets": [{ "datasource": { "type": "loki", "uid": "loki" }, "expr": "{app=\"ethereum-whale-alert\"} |= \"whale transaction detected\" | json | line_format \"{{.type}} | {{.value}} ETH | tx: {{.tx_hash}} | from: {{.from}} | to: {{.to}}\"", "refId": "A" }],
-      "title": "Whale Transactions Feed",
-      "type": "logs"
-    },
-
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
       "id": 105,
       "title": "Blockchain Analytics",
       "type": "row"
@@ -269,7 +243,7 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 34 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 23 },
       "id": 6,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(blocks_processed_total[5m]) * 60", "legendFormat": "Blocks / min", "refId": "A" }],
@@ -285,7 +259,7 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 34 },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 23 },
       "id": 31,
       "options": { "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ethereum_block_transactions_per_block", "legendFormat": "TXs per block", "refId": "A" }],
@@ -301,7 +275,7 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 34 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 23 },
       "id": 32,
       "options": { "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ethereum_block_gas_used", "legendFormat": "Gas Used", "refId": "A" }],
@@ -317,7 +291,7 @@
           "unit": "ms"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
       "id": 7,
       "options": { "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
@@ -337,42 +311,17 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
       "id": 33,
       "options": { "legend": { "calcs": ["sum"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "increase(erc20_tokens_skipped_total[5m])", "legendFormat": "ERC-20 Skipped (no price)", "refId": "A" }],
       "title": "ERC-20 Transfers Skipped (No Price)",
       "type": "timeseries"
     },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 50 },
-      "id": 106,
-      "title": "Block Processing Log",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 51 },
-      "id": 34,
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "targets": [{ "datasource": { "type": "loki", "uid": "loki" }, "expr": "{app=\"ethereum-whale-alert\"} |= \"block processed\" | json | line_format \"Block #{{.block}} | {{.transactions}} txs | {{.whale_count}} whales | gas: {{.gas_used}} | {{.duration_ms}}ms\"", "refId": "A" }],
-      "title": "Block Processing Feed",
-      "type": "logs"
-    },
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 59 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
       "id": 102,
       "title": "Notifications",
       "type": "row"
@@ -386,7 +335,7 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 60 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
       "id": 11,
       "options": { "legend": { "calcs": ["sum"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
@@ -405,7 +354,7 @@
           "unit": "ms"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 60 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
       "id": 12,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
@@ -428,7 +377,7 @@
           { "matcher": { "id": "byName", "options": "discord" }, "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }] }
         ]
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 68 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
       "id": 13,
       "options": { "colorMode": "value", "graphMode": "area", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "notifications_sent_total", "legendFormat": "{{channel}}", "refId": "A" }],
@@ -444,7 +393,7 @@
           "unit": "percentunit", "min": 0, "max": 1
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 68 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
       "id": 35,
       "options": { "colorMode": "value", "graphMode": "area", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "notifications_sent_total / (notifications_sent_total + notification_errors_total)", "legendFormat": "{{channel}} success rate", "refId": "A" }],
@@ -454,33 +403,7 @@
 
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 76 },
-      "id": 107,
-      "title": "Error Log",
-      "type": "row"
-    },
-    {
-      "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 77 },
-      "id": 36,
-      "options": {
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "prettifyLogMessage": true,
-        "showCommonLabels": false,
-        "showLabels": false,
-        "showTime": true,
-        "sortOrder": "Descending",
-        "wrapLogMessage": false
-      },
-      "targets": [{ "datasource": { "type": "loki", "uid": "loki" }, "expr": "{app=\"ethereum-whale-alert\"} | json | level = \"ERROR\"", "refId": "A" }],
-      "title": "Application Errors",
-      "type": "logs"
-    },
-
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 85 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 },
       "id": 103,
       "title": "System Health",
       "type": "row"
@@ -494,7 +417,7 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 86 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 57 },
       "id": 15,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "go_goroutines{job=\"ethereum-whale-alert\"}", "legendFormat": "Goroutines", "refId": "A" }],
@@ -510,7 +433,7 @@
           "unit": "bytes"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 86 },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 57 },
       "id": 16,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
@@ -530,7 +453,7 @@
           "unit": "s"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 86 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 57 },
       "id": 17,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(go_gc_duration_seconds_sum{job=\"ethereum-whale-alert\"}[5m])", "legendFormat": "GC Duration Rate", "refId": "A" }],
@@ -546,7 +469,7 @@
           "unit": "percent"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 94 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 65 },
       "id": 37,
       "options": { "legend": { "calcs": ["mean", "max"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(process_cpu_seconds_total{job=\"ethereum-whale-alert\"}[5m]) * 100", "legendFormat": "CPU %", "refId": "A" }],
@@ -562,7 +485,7 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 94 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 65 },
       "id": 38,
       "options": { "legend": { "calcs": ["lastNotNull"], "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
       "targets": [
@@ -597,5 +520,5 @@
   "timezone": "browser",
   "title": "Ethereum Whale Alert",
   "uid": "ethereum-whale-alert",
-  "version": 2
+  "version": 3
 }
